@@ -1,6 +1,10 @@
-from operator import itemgetter
-from typing import List
 from enum import Enum
+import json
+import os
+from operator import itemgetter
+import requests
+from requests.models import Request
+from typing import List
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
@@ -66,6 +70,52 @@ class Extrato(BaseModel):
     extrato: List[Transferencia] = Field(..., description="Lista completa das transferências realizadas e recebidas no extrato bancário.")
 
 
+def post_extrato_parser(file_path: str) -> Request:
+
+    API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
+    if not API_KEY:
+        raise ValueError("A variável de ambiente LLAMA_CLOUD_API_KEY não está definida.")
+    
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
+
+    url = "https://api.cloud.llamaindex.ai/api/v2alpha1/parse/upload"
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+
+    # Aqui, usaremos o modo invoice, já que ele é otimizado para recibos e faturas.
+    # Decidimos não usar o invoice-v-1 por enquanto.
+    config = {
+        "parse_options": {
+            "parse_mode": "preset",
+            "preset_options": {
+                "preset": "invoice"
+            }
+        }
+    }
+
+    # Ainda temos que definir o max_pages e outras informações relevantes...
+    with open(file_path, "rb") as f:
+        files = {"file": (os.path.basename(file_path), f, "application/pdf")}
+        data = {"configuration": json.dumps(config)}
+        response = requests.post(url, headers=headers, files=files, data=data)
+    
+    return response
+
+
+def get_extrato_parser(id: str, type_result: str) -> Request:
+
+    API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
+    if not API_KEY:
+        raise ValueError("A variável de ambiente LLAMA_CLOUD_API_KEY não está definida.")
+
+    url = f"https://api.cloud.llamaindex.ai/api/v1/parsing/job/{id}/result/{type_result}"
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+
+    response = requests.get(url, headers=headers)
+    
+    return response
+
+
 def get_extrato_estruturado(extrato_string: str) -> List[Transferencia]:
 
     model = ChatOpenAI(model="gpt-4o")
@@ -114,6 +164,6 @@ def get_extrato_estruturado(extrato_string: str) -> List[Transferencia]:
         | (lambda x: x.extrato)
     )
 
-    resposta = chain.invoke({"extrato": extrato_string})
+    response = chain.invoke({"extrato": extrato_string})
 
-    return resposta
+    return response
