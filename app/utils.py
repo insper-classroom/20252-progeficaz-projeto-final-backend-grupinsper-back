@@ -60,6 +60,11 @@ class Banco(Enum):
     OUTROS                  = "OUTROS"
 
 
+class BancoCandidato(BaseModel):
+    banco: Banco = Field(..., description="O banco que o extrato pertence. Caso não saiba, coloque outros.")
+    score: float = Field(..., description="Pontuação entre 0.0 e 1.0. Apenas deixe acima de 0.8 se tiver **certeza absoluta** há informações para concluir que é o banco correto.")
+
+
 class Transferencia(BaseModel):
     valor: float = Field(..., description="O valor da transferência, o qual é um inteiro (negativo, positivo ou nulo).")
     origem: OrigemTransacao = Field(..., description="Forma como a transação foi realizada, como PIX, transferência, compra com cartão, etc.")
@@ -67,7 +72,7 @@ class Transferencia(BaseModel):
 
 
 class Extrato(BaseModel):
-    banco : Banco = Field(..., description="O banco que o extrato pertence.")
+    banco : BancoCandidato = Field(..., description="Informações sobre o banco que o extrato pertence")
     extrato: List[Transferencia] = Field(..., description="Lista completa das transferências realizadas e recebidas no extrato bancário.")
     data : date = Field(..., description="Coloque a data do primeiro dia relativo ao mês do extrato.")
 
@@ -111,14 +116,13 @@ def get_extrato_parser(id: str, type_result: str) -> Request:
     return response
 
 
-# Aqui ele está errando o banco, errando muito feio inclusive.
 def get_extrato_estruturado(extrato_string: str) -> Extrato:
 
     model = ChatOpenAI(model="gpt-4o")
     structured_model = model.with_structured_output(Extrato)
 
     message = """
-    Você é um parser de extrato bancário genérico: recebe um bloco de texto (várias linhas) de qualquer banco e deve devolver o objeto Extrato, o qual possui "extrato" e o "banco" do extrato.
+    Você é um parser de extrato bancário genérico: recebe um bloco de texto (várias linhas) de qualquer banco e deve devolver o objeto Extrato.
 
     **Como fazer:**
 
@@ -144,7 +148,7 @@ def get_extrato_estruturado(extrato_string: str) -> Extrato:
     - PESSOA_FISICA: transferência para CPF ou nome próprio de pessoa  
     - OUTROS: caso não se enquadre em nenhum acima
 
-    5. **Mapear `banco: Banco`** da transferência.
+    5. **Mapear `banco: BancoCandidato`** da transferência.
     
     6. **Mapear `data: date`** do extrato. Você colocar a data do primeiro dia do mês que o extrato se refere. Temos várias datas diferentes, porém todas com o mesmo mês. Identique o mês.
     """
