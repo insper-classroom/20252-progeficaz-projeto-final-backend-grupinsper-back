@@ -1,5 +1,6 @@
+from datetime import date
 from enum import Enum
-import json
+from io import BufferedReader
 import os
 from operator import itemgetter
 import requests
@@ -38,25 +39,25 @@ class OrigemTransacao(Enum):
 
 
 class Banco(Enum):
-    BANCO_DO_BRASIL         = "001"
-    CAIXA_ECONOMICA_FEDERAL = "104"
-    ITAU                    = "341"
-    BRADESCO                = "237"
-    SANTANDER               = "033"
-    NUBANK                  = "260"
-    INTER                   = "077"
-    BTG_PACTUAL             = "208"
-    SAFRA                   = "422"
-    SICREDI                 = "748"
-    SICOOB                  = "756"
-    ORIGINAL                = "212"
-    C6_BANK                 = "336"
-    PAGBANK                 = "290"
-    BANRISUL                = "041"
-    MERCANTIL_DO_BRASIL     = "389"
-    PAN                     = "623"
-    BMG                     = "318"
-    OUTROS                  = "000"
+    BANCO_DO_BRASIL         = "BANCO_DO_BRASIL"
+    CAIXA_ECONOMICA_FEDERAL = "CAIXA_ECONOMICA_FEDERAL"
+    ITAU                    = "ITAU"
+    BRADESCO                = "BRADESCO"
+    SANTANDER               = "SANTANDER"
+    NUBANK                  = "NUBANK"
+    INTER                   = "INTER"
+    BTG_PACTUAL             = "BTG_PACTUAL"
+    SAFRA                   = "SAFRA"
+    SICREDI                 = "SICREDI"
+    SICOOB                  = "SICOOB"
+    ORIGINAL                = "ORIGINAL"
+    C6_BANK                 = "C6_BANK"
+    PAGBANK                 = "PAGBANK"
+    BANRISUL                = "BANRISUL"
+    MERCANTIL_DO_BRASIL     = "MERCANTIL_DO_BRASIL"
+    PAN                     = "PAN"
+    BMG                     = "BMG"
+    OUTROS                  = "OUTROS"
 
 
 class Transferencia(BaseModel):
@@ -68,36 +69,30 @@ class Transferencia(BaseModel):
 class Extrato(BaseModel):
     banco : Banco = Field(..., description="O banco que o extrato pertence.")
     extrato: List[Transferencia] = Field(..., description="Lista completa das transferências realizadas e recebidas no extrato bancário.")
+    data : date = Field(..., description="Coloque a data do primeiro dia relativo ao mês do extrato.")
 
 
-def post_extrato_parser(file_path: str) -> Request:
+def post_extrato_parser(file: BufferedReader, file_name: str = "file_name") -> Request:
 
     API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
     if not API_KEY:
         raise ValueError("A variável de ambiente LLAMA_CLOUD_API_KEY não está definida.")
-    
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
 
-    url = "https://api.cloud.llamaindex.ai/api/v2alpha1/parse/upload"
+    url = "https://api.cloud.llamaindex.ai/api/v1/parsing/upload"
     headers = {"Authorization": f"Bearer {API_KEY}"}
 
-    # Aqui, usaremos o modo invoice, já que ele é otimizado para recibos e faturas.
+    # Aqui, usaremos o modo invoice no futuro (ou não, muito caro), já que ele é otimizado para recibos e faturas.
     # Decidimos não usar o invoice-v-1 por enquanto.
-    config = {
-        "parse_options": {
-            "parse_mode": "preset",
-            "preset_options": {
-                "preset": "invoice"
-            }
-        }
+    # Note que para usar o invoice, a url é outra.
+    # Por enquanto, o max_pages está limitado em 10 por extrato.
+    data = {
+        "max_pages": 10,
+        "premium_mode": False,
+        "fast_mode": True,
     }
 
-    # Ainda temos que definir o max_pages e outras informações relevantes...
-    with open(file_path, "rb") as f:
-        files = {"file": (os.path.basename(file_path), f, "application/pdf")}
-        data = {"configuration": json.dumps(config)}
-        response = requests.post(url, headers=headers, files=files, data=data)
+    files = {"file": (file_name, file, "application/pdf")}
+    response = requests.post(url, headers=headers, files=files, data=data)
     
     return response
 
@@ -116,7 +111,8 @@ def get_extrato_parser(id: str, type_result: str) -> Request:
     return response
 
 
-def get_extrato_estruturado(extrato_string: str) -> List[Transferencia]:
+# Aqui ele está errando o banco, errando muito feio inclusive.
+def get_extrato_estruturado(extrato_string: str) -> Extrato:
 
     model = ChatOpenAI(model="gpt-4o")
     structured_model = model.with_structured_output(Extrato)
@@ -149,6 +145,8 @@ def get_extrato_estruturado(extrato_string: str) -> List[Transferencia]:
     - OUTROS: caso não se enquadre em nenhum acima
 
     5. **Mapear `banco: Banco`** da transferência.
+    
+    6. **Mapear `data: date`** do extrato. Você colocar a data do primeiro dia do mês que o extrato se refere. Temos várias datas diferentes, porém todas com o mesmo mês. Identique o mês.
     """
 
 
@@ -161,7 +159,6 @@ def get_extrato_estruturado(extrato_string: str) -> List[Transferencia]:
         {"extrato": itemgetter("extrato")}
         | prompt
         | structured_model
-        | (lambda x: x.extrato)
     )
 
     response = chain.invoke({"extrato": extrato_string})
