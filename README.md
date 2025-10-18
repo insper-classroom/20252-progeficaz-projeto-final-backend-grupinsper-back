@@ -38,10 +38,64 @@ pip install -r requirements.txt
 python wsgi.py
 ```
 
-A aplicação expõe uma rota `GET /` que responde com um payload JSON simples, útil para checar rapidamente se o backend está ativo.
+A aplicação expõe rotas REST para gerenciar usuários e faturas, seguindo o padrão Richardson Nível 2.
+
+## Rotas Implementadas
+
+### Usuários
+
+| Método | Rota | Descrição | Status |
+|--------|------|-----------|--------|
+| GET | `/users` | Listar todos os usuários | ✅ |
+| POST | `/users` | Criar novo usuário | ✅ |
+| GET | `/users/<id>` | Obter usuário por ID | ✅ |
+| PUT | `/users/<id>` | Atualizar usuário | ✅ |
+| DELETE | `/users/<id>` | Deletar usuário | ✅ |
+
+#### Exemplos de uso
+
+**GET /users** - Listar usuários
+```bash
+curl http://localhost:5000/users
+```
+
+**POST /users** - Criar usuário
+```bash
+curl -X POST http://localhost:5000/users \
+  -H "Content-Type: application/json" \
+  -d '{"name": "João Silva", "email": "joao@example.com"}'
+```
+
+**GET /users/<id>** - Obter usuário específico
+```bash
+curl http://localhost:5000/users/507f1f77bcf86cd799439011
+```
+
+**PUT /users/<id>** - Atualizar usuário
+```bash
+curl -X PUT http://localhost:5000/users/507f1f77bcf86cd799439011 \
+  -H "Content-Type: application/json" \
+  -d '{"name": "João Silva Updated"}'
+```
+
+**DELETE /users/<id>** - Deletar usuário
+```bash
+curl -X DELETE http://localhost:5000/users/507f1f77bcf86cd799439011
+```
+
+### Faturas
+
+| Método | Rota | Descrição | Status |
+|--------|------|-----------|--------|
+| GET | `/invoices` | Listar faturas | ⏳ |
+| POST | `/invoices` | Criar fatura | ⏳ |
+| GET | `/invoices/<id>` | Obter fatura por ID | ⏳ |
+| PUT | `/invoices/<id>` | Atualizar fatura | ⏳ |
+| DELETE | `/invoices/<id>` | Deletar fatura | ⏳ |
 
 ## Próximos passos sugeridos
 
+- Implementar as rotas de faturas (`register_routes_invoices`)
 - Criar variáveis de ambiente (arquivo `.env`) para segredos e credenciais
 - Adicionar camadas adicionais (serviços, repositórios) conforme a regra de negócio evoluir
 - Configurar testes automatizados quando houver lógica crítica
