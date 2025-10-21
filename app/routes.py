@@ -24,7 +24,7 @@ def register_routes_user(app):
         """GET /users - Listar todos os usuários"""
         try:
             collection = get_db()
-            users = list(collection.find({}, {"name": 1, "email": 1, "cpf": 1, "phone": 1 , "faturas": 1}))
+            users = list(collection.find({}, {"name": 1, "email": 1, "cpf": 1, "phone": 1, "faturas": 1, "password": 1}))
             # Converter ObjectId para string
             for user in users:
                 user["_id"] = str(user["_id"])
