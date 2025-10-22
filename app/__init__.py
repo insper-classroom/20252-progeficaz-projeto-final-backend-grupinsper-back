@@ -1,8 +1,11 @@
 from datetime import timedelta
 from flask import Flask
 from flask_jwt_extended import JWTManager
+
 from app.routes import register_routes_user , register_routes_invoices
 from app.auth_routes import register_routes_auth
+
+
 def create_app():
     app = Flask(__name__)
     

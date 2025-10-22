@@ -1,13 +1,17 @@
+import asyncio
+from datetime import datetime
+from io import BytesIO
+
 from bson import ObjectId
 from bson.errors import InvalidId
-from flask import jsonify, request
-from _db import get_db , get_db_connection
-from datetime import datetime
 from validate_docbr import CPF
+from flask import jsonify, request
+
+from app.controller.utils_formatar_extrato import formatar_extratos
+from _db import get_db , get_db_connection
 
 COLLECTION_USERS = "usuarios_collection"
 COLLECTIONS_FATURAS = "faturas_collection"
-
 
 
 def register_routes_user(app):
@@ -234,13 +238,20 @@ def register_routes_invoices(app):
             return jsonify({"error": "ID de faturaExtrato inválido"}), 400
         
         try:
-            data = request.get_json()
-            if not data:
-                return jsonify({"error": "Dados são obrigatórios"}), 400
+            files = request.files.getlist("file")
+            if not files:
+                return jsonify({"error": "Nenhum arquivo enviado"}), 400
             
-            # Validar campos obrigatórios
+            buffers = []
+            for f in files:
+                data = f.read()
+                f.stream.seek(0)
+                buffer = BytesIO(data)
+                buffer.name = f.filename
+                buffers.append(buffer)
+        
+            extratos = [extrato.to_dict() for extrato in asyncio.run(formatar_extratos(buffers))]
 
-            
             db = get_db_connection()
             faturas_collection = db[COLLECTIONS_FATURAS]
             
@@ -249,26 +260,13 @@ def register_routes_invoices(app):
             if not fatura:
                 return jsonify({"error": "faturaExtrato não encontrada"}), 404
             
-            # Gerar ID único para o extrato
-            extrato_id = str(ObjectId())
-            extrato_data = {
-                "id": extrato_id,
-                "data_criacao": datetime.now().strftime("%d/%m/%Y"),
-                "conteudo": data.get("conteudo"),
-            }
-            
             # Adicionar extrato à lista de extratos da faturaExtrato
-            result = faturas_collection.update_one(
+            faturas_collection.update_one(
                 {"_id": fatura_obj_id},
-                {"$push": {"extratos": extrato_data}}
+                {"$push": {"extratos": extratos}}
             )
-            if "conteudo" not in data:
-                return jsonify({"error": "Campo 'conteudo' é obrigatório"}), 400
-
-            if result.modified_count == 0:
-                return jsonify({"error": "Erro ao adicionar extrato"}), 500
             
-            return jsonify({"id": extrato_id, "faturaExtrato_id": fatura_id, **extrato_data}), 201
+            return jsonify({"extrato": extratos}), 201
         except Exception as e:
             print(f"Erro ao adicionar extrato: {str(e)}")
             return jsonify({"error": str(e)}), 500

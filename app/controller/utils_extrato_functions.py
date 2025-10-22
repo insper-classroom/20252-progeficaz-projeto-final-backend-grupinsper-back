@@ -1,7 +1,5 @@
 import base64
-from datetime import date
-from enum import Enum
-from io import BufferedReader
+from io import BytesIO
 import os
 from operator import itemgetter
 import requests
@@ -10,78 +8,16 @@ from typing import List, Union
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from pydantic import Field, BaseModel
+
+from app.models import BancoCandidato, Extrato
+
 
 load_dotenv(override=True)
 
 
-class CategoriaGasto(Enum):
-    MORADIA         = "Moradia"
-    ALIMENTACAO     = "Alimentação"
-    TRANSPORTE      = "Transporte"
-    SAUDE           = "Saúde"
-    EDUCACAO        = "Educação"
-    LAZER           = "Lazer e Entretenimento"
-    IMPOSTOS        = "Impostos e Obrigações Legais"
-    PESSOA_FISICA   = "Transação com pessoa física"
-    OUTROS          = "Outros"
-
-
-class OrigemTransacao(Enum):
-    PIX                     = "PIX"
-    TRANSFERENCIA           = "Transferência"
-    DEPOSITO                = "Depósito"
-    SAQUE                   = "Saque em dinheiro"
-    COMPRA_CARTAO           = "Compra com cartão"
-    PAGAMENTO_BOLETO        = "Pagamento de boleto"
-    ESTORNO                 = "Estorno"
-    OUTROS                  = "Outros"
-
-
-class Banco(Enum):
-    BANCO_DO_BRASIL         = "BANCO_DO_BRASIL"
-    CAIXA_ECONOMICA_FEDERAL = "CAIXA_ECONOMICA_FEDERAL"
-    ITAU                    = "ITAU"
-    BRADESCO                = "BRADESCO"
-    SANTANDER               = "SANTANDER"
-    NUBANK                  = "NUBANK"
-    INTER                   = "INTER"
-    BTG_PACTUAL             = "BTG_PACTUAL"
-    SAFRA                   = "SAFRA"
-    SICREDI                 = "SICREDI"
-    SICOOB                  = "SICOOB"
-    ORIGINAL                = "ORIGINAL"
-    C6_BANK                 = "C6_BANK"
-    PAGBANK                 = "PAGBANK"
-    BANRISUL                = "BANRISUL"
-    MERCANTIL_DO_BRASIL     = "MERCANTIL_DO_BRASIL"
-    PAN                     = "PAN"
-    BMG                     = "BMG"
-    OUTRO                   = "OUTRO"
-    NAO_IDENTIFICADO        = "NAO_IDENTIFICADO"
-
-
-class BancoCandidato(BaseModel):
-    banco: Banco = Field(..., description="O banco que o extrato pertence. Caso não saiba, coloque NAO_IDENTIFICADO.")
-    score: float = Field(..., description="Pontuação entre 0.0 e 1.0. Apenas deixe acima de 0.8 se tiver **certeza absoluta** há informações para concluir que é o banco correto.")
-
-
-class Transferencia(BaseModel):
-    valor: float = Field(..., description="O valor da transferência, o qual é um inteiro (negativo, positivo ou nulo).")
-    data : date = Field(..., description="Coloque a data relativa a essa transferência.")
-    origem: OrigemTransacao = Field(..., description="Forma como a transação foi realizada, como PIX, transferência, compra com cartão, etc.")
-    categoria: CategoriaGasto = Field(..., description="Categoria da pessoa ou entidade que enviou ou recebeu a transação.")
-
-
-class Extrato(BaseModel):
-    banco : BancoCandidato = Field(..., description="Informações sobre o banco que o extrato pertence")
-    extrato: List[Transferencia] = Field(..., description="Lista completa das transferências realizadas e recebidas no extrato bancário.")
-    data : date = Field(..., description="Coloque a data do primeiro dia relativo ao mês do extrato.")
-
-
-def post_extrato_parser(file: BufferedReader, file_name: str = "file_name") -> Request:
+def post_extrato_parser(file: BytesIO, file_name: str = "file_name") -> Request:
 
     API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
     if not API_KEY:
@@ -106,7 +42,7 @@ def post_extrato_parser(file: BufferedReader, file_name: str = "file_name") -> R
     return response
 
 
-def get_extrato_parser(id: str, type_result: str) -> Request:
+def get_extrato_parser(id: str, type_result="text") -> Request:
 
     API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
     if not API_KEY:
@@ -146,7 +82,7 @@ def get_extrato_images_names(id: str) -> Union[List[str], None]:
     return None
 
 
-def get_extrato_images(id: str, image_name: List[str]) -> Request:
+def get_extrato_images(id: str, image_name: str) -> Request:
     # Para conseguir o binário, dê um .content na Response
 
     API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
@@ -218,7 +154,7 @@ def get_extrato_estruturado(extrato_string: str) -> Extrato:
     return response
 
 
-def get_banco_candidato(image_in_binary: bytes, file_format: str) -> BancoCandidato:
+def get_banco_candidato(image_in_binary: bytes, file_format="pdf") -> BancoCandidato:
 
     image_b64 = base64.b64encode(image_in_binary).decode("utf-8")
 
