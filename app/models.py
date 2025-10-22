@@ -64,7 +64,7 @@ class BancoCandidato(BaseModel):
 class Transferencia(BaseModel):
 
     valor: float = Field(..., description="O valor da transferência, o qual é um inteiro (negativo, positivo ou nulo).")
-    data : date = Field(..., description="Coloque a data relativa a essa transferência.")
+    data : date = Field(..., description="Coloque a data relativa a essa transferência no formato YYYY/MM/DD. Coloque corretamente o ano da transferência.")
     origem: OrigemTransacao = Field(..., description="Forma como a transação foi realizada, como PIX, transferência, compra com cartão, etc.")
     categoria: CategoriaGasto = Field(..., description="Categoria da pessoa ou entidade que enviou ou recebeu a transação.")
 
