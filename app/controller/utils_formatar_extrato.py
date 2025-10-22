@@ -4,7 +4,7 @@ from io import BytesIO
 from typing import List
 
 import app.controller.utils_extrato_functions as utils_extrato_functions
-from app.models import Extrato
+from app.models import Extrato, Banco
 
 
 async def formatar_extratos(files: List[BytesIO]) -> List[Extrato]:
@@ -52,7 +52,7 @@ async def formatar_extratos(files: List[BytesIO]) -> List[Extrato]:
                 
                 bancos_candidatos = [x for x in bancos_candidatos if x != "NAO_IDENTIFICADO"]
                 banco = Counter(bancos_candidatos).most_common(1)[0][0]
-                extrato.banco.banco = utils_extrato_functions.Banco(banco)
+                extrato.banco.banco = Banco(banco)
 
                 lista_extratos.append(extrato)
                 continue

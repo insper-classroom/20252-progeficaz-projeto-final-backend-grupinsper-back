@@ -8,8 +8,8 @@ from typing import List, Union
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
 
 from app.models import BancoCandidato, Extrato
 

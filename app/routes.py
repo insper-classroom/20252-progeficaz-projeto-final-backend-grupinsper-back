@@ -247,9 +247,9 @@ def register_routes_invoices(app):
                 data = f.read()
                 f.stream.seek(0)
                 buffer = BytesIO(data)
-                # buffer.name = f.filename
+                buffer.name = f.filename
                 buffers.append(buffer)
-
+        
             extratos = [extrato.to_dict() for extrato in asyncio.run(formatar_extratos(buffers))]
 
             db = get_db_connection()
@@ -266,7 +266,7 @@ def register_routes_invoices(app):
                 {"$push": {"extratos": extratos}}
             )
             
-            return jsonify(fatura + {"extrato": extratos}), 201
+            return jsonify({"extrato": extratos}), 201
         except Exception as e:
             print(f"Erro ao adicionar extrato: {str(e)}")
             return jsonify({"error": str(e)}), 500
