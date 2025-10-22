@@ -23,7 +23,7 @@ def register_routes_user(app):
         collection = get_db()
         collection.create_index("email", unique=True)
     
-    @app.route("/users", methods=["GET"])
+    @app.route("/usuarios", methods=["GET"])
     def list_users():
         """GET /users - Listar todos os usuários"""
         try:
@@ -36,7 +36,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/users", methods=["POST"])
+    @app.route("/usuarios", methods=["POST"])
     def create_user():
         """POST /users - Criar novo usuário"""
         try:
@@ -68,7 +68,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/users/<user_id>", methods=["GET"])
+    @app.route("/usuarios/<user_id>", methods=["GET"])
     def get_user(user_id):
         """GET /users/<id> - Obter usuário por ID"""
         try:
@@ -88,7 +88,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/users/<user_id>", methods=["PUT"])
+    @app.route("/usuarios/<user_id>", methods=["PUT"])
     def update_user(user_id):
         """PUT /users/<id> - Atualizar usuário"""
         try:
@@ -117,7 +117,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/users/<user_id>", methods=["DELETE"])
+    @app.route("/usuarios/<user_id>", methods=["DELETE"])
     def delete_user(user_id):
         """DELETE /users/<id> - Deletar usuário"""
         try:
@@ -203,7 +203,7 @@ def register_routes_invoices(app):
             print(f"Erro no POST: {str(e)}")
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/usuarios/<user_id>", methods=["GET"])
+    @app.route("/faturas/usuario/<user_id>", methods=["GET"])
     def get_user_faturas(user_id):
         """GET /faturas/<user_id> - Listar extratos do usuário"""
         try:
