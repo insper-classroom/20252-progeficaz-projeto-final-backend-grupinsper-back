@@ -1,8 +1,8 @@
 import os
-from flask import Flask, request, jsonify
+
+from dotenv import load_dotenv
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-from dotenv import load_dotenv
 
 load_dotenv()
 MONGO_URI = os.getenv('MONGO_URI') 

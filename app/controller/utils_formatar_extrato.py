@@ -4,9 +4,10 @@ from io import BytesIO
 from typing import List
 
 import app.controller.utils_extrato_functions as utils_extrato_functions
+from app.models import Extrato
 
 
-async def formatar_extratos(files: List[BytesIO]) -> List[utils_extrato_functions.Extrato]:
+async def formatar_extratos(files: List[BytesIO]) -> List[Extrato]:
     
     lista_extratos = []
     

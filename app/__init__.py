@@ -1,4 +1,5 @@
 from flask import Flask
+
 from app.routes import register_routes_user , register_routes_invoices
 
 def create_app(config_object: str = "config.Config") -> Flask:
