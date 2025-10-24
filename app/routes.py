@@ -23,7 +23,7 @@ def register_routes_user(app):
         collection = get_db()
         collection.create_index("email", unique=True)
     
-    @app.route("/users", methods=["GET"])
+    @app.route("/usuarios", methods=["GET"])
     def list_users():
         """GET /users - Listar todos os usuários"""
         try:
@@ -36,7 +36,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/users", methods=["POST"])
+    @app.route("/usuarios", methods=["POST"])
     def create_user():
         """POST /users - Criar novo usuário"""
         try:
@@ -68,7 +68,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/users/<user_id>", methods=["GET"])
+    @app.route("/usuarios/<user_id>", methods=["GET"])
     def get_user(user_id):
         """GET /users/<id> - Obter usuário por ID"""
         try:
@@ -88,7 +88,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/users/<user_id>", methods=["PUT"])
+    @app.route("/usuarios/<user_id>", methods=["PUT"])
     def update_user(user_id):
         """PUT /users/<id> - Atualizar usuário"""
         try:
@@ -117,7 +117,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/users/<user_id>", methods=["DELETE"])
+    @app.route("/usuarios/<user_id>", methods=["DELETE"])
     def delete_user(user_id):
         """DELETE /users/<id> - Deletar usuário"""
         try:
@@ -203,7 +203,7 @@ def register_routes_invoices(app):
             print(f"Erro no POST: {str(e)}")
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/faturas/<user_id>", methods=["GET"])
+    @app.route("/faturas/usuario/<user_id>", methods=["GET"])
     def get_user_faturas(user_id):
         """GET /faturas/<user_id> - Listar extratos do usuário"""
         try:
@@ -271,23 +271,45 @@ def register_routes_invoices(app):
             print(f"Erro ao adicionar extrato: {str(e)}")
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/faturas/<fatura_id>/extratos", methods=["GET"])
-    def get_extratos(fatura_id):
-        """GET /faturas/<fatura_id>/extratos - Listar extratos de uma faturaExtrato"""
+    def _bson_to_json_compatible(obj):
+        """Converte recursivamente ObjectId e datetime para tipos JSON-serializáveis."""
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, dict):
+            return {k: _bson_to_json_compatible(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_bson_to_json_compatible(v) for v in obj]
+        return obj
+
+    @app.route("/faturas/<fatura_id>", methods=["GET"])
+    def get_fatura(fatura_id):
+        """
+        GET /faturas/<fatura_id> - Retorna a fatura completa com o _id especificado.
+        """
+        # valida id
         try:
             fatura_obj_id = ObjectId(fatura_id)
         except InvalidId:
-            return jsonify({"error": "ID de faturaExtrato inválido"}), 400
-        
+            return jsonify({"error": "ID de fatura inválido"}), 400
+
         try:
             db = get_db_connection()
             faturas_collection = db[COLLECTIONS_FATURAS]
-            
-            # Buscar faturaExtrato
+
             fatura = faturas_collection.find_one({"_id": fatura_obj_id})
             if not fatura:
-                return jsonify({"error": "faturaExtrato não encontrada"}), 404
-            
-            return jsonify(fatura["extratos"]), 200
+                return jsonify({"error": "Fatura não encontrada"}), 404
+
+            # converte campos BSON não serializáveis (ObjectId, datetime, etc)
+            fatura_serializavel = _bson_to_json_compatible(fatura)
+
+            # retorna JSON
+            return jsonify(fatura_serializavel), 200
+
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            app.logger.exception("Erro ao buscar fatura")
+            return jsonify({"error": "Erro interno ao buscar fatura", "details": str(e)}), 500
+        
+    
