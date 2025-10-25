@@ -11,7 +11,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - 
 
 ### Changed
-- 
+-   
 
 ### Deprecated
 - 
@@ -23,9 +23,20 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - 
 
 ### Security
-- 
+- Tokens JWT com expiração configurável e segregação entre access/refresh
 
 ---
+
+## [1.0.0] - 20
+### Added
+- Autenticação JWT com tokens de acesso e refresh
+- Pipeline assíncrono para upload e normalização de extratos bancários
+- Documentação atualizada com rotas, fluxo de uso e arquitetura revisada
+
+### Changed
+- Ajuste das rotas de faturas para suportar múltiplos uploads e retorno detalhado
+- Estrutura do README com novas seções de autenticação e exemplos protegidos
+
 
 ## [0.9.0] - 2025-10-20
 
@@ -93,5 +104,3 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Added
 - Implementação inicial da arquitetura do projeto
-
----
