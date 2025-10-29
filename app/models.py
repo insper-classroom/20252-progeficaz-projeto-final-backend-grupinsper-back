@@ -79,7 +79,7 @@ class Extrato(BaseModel):
         
         json = dict()
         json["banco"] = self.banco.banco.value
-        # json["data"] = "/".join(str(self.data).split("-")[0:2][::-1])
+        json["data"] = "/".join(str(self.data).split("-")[0:2][::-1])
         json["_id"] = str(ObjectId())
         json["transferencias"] = []
         for transferencia in self.extrato:

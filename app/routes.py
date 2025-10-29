@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 from io import BytesIO
+import os
 
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -10,8 +11,8 @@ from flask import jsonify, request
 from app.controller.utils_formatar_extrato import formatar_extratos
 from _db import get_db , get_db_connection
 
-COLLECTION_USERS = "usuarios_collection"
-COLLECTIONS_FATURAS = "faturas_collection"
+COLLECTION_USERS = os.getenv("COLLECTION_USERS")
+COLLECTION_FATURAS = os.getenv("COLLECTION_FATURAS")
 
 
 def register_routes_user(app):
@@ -23,6 +24,7 @@ def register_routes_user(app):
         collection = get_db()
         collection.create_index("email", unique=True)
     
+
     @app.route("/usuarios", methods=["GET"])
     def list_users():
         """GET /users - Listar todos os usuários"""
@@ -35,6 +37,7 @@ def register_routes_user(app):
             return jsonify(users), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
 
     @app.route("/usuarios", methods=["POST"])
     def create_user():
@@ -68,6 +71,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+
     @app.route("/usuarios/<user_id>", methods=["GET"])
     def get_user(user_id):
         """GET /users/<id> - Obter usuário por ID"""
@@ -87,6 +91,7 @@ def register_routes_user(app):
             return jsonify(user), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
 
     @app.route("/usuarios/<user_id>", methods=["PUT"])
     def update_user(user_id):
@@ -117,6 +122,7 @@ def register_routes_user(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+
     @app.route("/usuarios/<user_id>", methods=["DELETE"])
     def delete_user(user_id):
         """DELETE /users/<id> - Deletar usuário"""
@@ -145,7 +151,7 @@ def register_routes_invoices(app):
         """GET /faturas - Listar todos os extratos"""
         try:
             db = get_db_connection()
-            faturas_collection = db[COLLECTIONS_FATURAS]
+            faturas_collection = db[COLLECTION_FATURAS]
             faturas = list(faturas_collection.find())
             for fatura in faturas:
                 fatura["_id"] = str(fatura["_id"])
@@ -153,55 +159,6 @@ def register_routes_invoices(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/faturas/<user_id>", methods=["POST"])
-    def post_fatura(user_id):
-        """POST /faturas/<user_id> - Criar faturaExtrato para o mês atual"""
-        try:
-            obj_id = ObjectId(user_id)
-        except InvalidId:
-            return jsonify({"error": "ID de usuário inválido"}), 400
-        
-        try:
-            db = get_db_connection()
-            users_collection = db[COLLECTION_USERS]
-            faturas_collection = db[COLLECTIONS_FATURAS]
-            
-            # Verificar se usuário existe
-            user = users_collection.find_one({"_id": obj_id})
-            if not user:
-                return jsonify({"error": "Usuário não encontrado"}), 404
-            
-            mes_ano = datetime.now().strftime("%m/%Y")
-            
-            # Verificar se já existe faturaExtrato para este mês/ano
-            fatura_existente = faturas_collection.find_one({
-                "user_id": str(obj_id),
-                "mes_ano": mes_ano
-            })
-            
-            if fatura_existente:
-                return jsonify({"error": "faturaExtrato já existe para este mês"}), 400
-            
-            # Criar nova faturaExtrato
-            fatura_data = {
-                "user_id": str(obj_id),
-                "mes_ano": mes_ano,
-                "extratos": []
-            }
-            
-            result = faturas_collection.insert_one(fatura_data)
-            fatura_id = str(result.inserted_id)
-            
-            # Adicionar faturaExtrato à lista do usuário
-            users_collection.update_one(
-                {"_id": obj_id},
-                {"$push": {"faturas": fatura_id}}
-            )
-            
-            return jsonify({"id": fatura_id, "mes_ano": mes_ano, "user_id": str(obj_id), "extratos": []}), 201
-        except Exception as e:
-            print(f"Erro no POST: {str(e)}")
-            return jsonify({"error": str(e)}), 500
 
     @app.route("/faturas/usuario/<user_id>", methods=["GET"])
     def get_user_faturas(user_id):
@@ -214,7 +171,7 @@ def register_routes_invoices(app):
         try:
             db = get_db_connection()
             users_collection = db[COLLECTION_USERS]
-            faturas_collection = db[COLLECTIONS_FATURAS]
+            faturas_collection = db[COLLECTION_FATURAS]
             
             # Verificar se o usuário existe
             user = users_collection.find_one({"_id": obj_id})
@@ -229,13 +186,22 @@ def register_routes_invoices(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/faturas/<fatura_id>/extratos", methods=["POST"])
-    def post_extrato(fatura_id):
-        """POST /faturas/<fatura_id>/extratos - Adicionar extrato à faturaExtrato"""
+
+    @app.route("/faturas/usuario/<user_id>", methods=["POST"])
+    def post_extrato(user_id):
+        """POST /faturas/<user_id> - Adicionar extrato à faturaExtrato"""
         try:
-            fatura_obj_id = ObjectId(fatura_id)
+            user_id = ObjectId(user_id)
         except InvalidId:
-            return jsonify({"error": "ID de faturaExtrato inválido"}), 400
+            return jsonify({"error": "ID de usuário inválido"}), 400
+        
+        try:
+            db = get_db_connection()
+            users_collection = db[COLLECTION_USERS]
+            faturas_collection = db[COLLECTION_FATURAS]
+        except Exception as e:
+            print(f"Erro ao conectar no db: {str(e)}")
+            return jsonify({"error": str(e)}), 500
         
         try:
             files = request.files.getlist("file")
@@ -251,18 +217,36 @@ def register_routes_invoices(app):
                 buffers.append(buffer)
         
             extratos = [extrato.to_dict() for extrato in asyncio.run(formatar_extratos(buffers))]
+            mes_ano = extratos[0]["data"]
 
-            db = get_db_connection()
-            faturas_collection = db[COLLECTIONS_FATURAS]
-            
-            # Verificar se faturaExtrato existe
-            fatura = faturas_collection.find_one({"_id": fatura_obj_id})
+            fatura = faturas_collection.find_one({"user_id": str(user_id), "mes_ano": mes_ano})
             if not fatura:
-                return jsonify({"error": "faturaExtrato não encontrada"}), 404
+                try:
+                    # Criar nova faturaExtrato
+                    fatura_data = {
+                        "user_id": str(user_id),
+                        "mes_ano": mes_ano,
+                        "extratos": []
+                    }
+                    
+                    result = faturas_collection.insert_one(fatura_data)
+                    fatura_id = str(result.inserted_id)
+                    
+                    # Adicionar faturaExtrato à lista do usuário
+                    users_collection.update_one(
+                        {"_id": user_id},
+                        {"$push": {"faturas": fatura_id}}
+                    )                
+
+                except Exception as e:
+                    print(f"Erro no POST: {str(e)}")
+                    return jsonify({"error": str(e)}), 500
+            
+            fatura = faturas_collection.find_one({"user_id": str(user_id), "mes_ano": mes_ano})
             
             # Adicionar extrato à lista de extratos da faturaExtrato
             faturas_collection.update_one(
-                {"_id": fatura_obj_id},
+                {"_id": fatura_id},
                 {"$push": {"extratos": extratos}}
             )
             
@@ -296,7 +280,7 @@ def register_routes_invoices(app):
 
         try:
             db = get_db_connection()
-            faturas_collection = db[COLLECTIONS_FATURAS]
+            faturas_collection = db[COLLECTION_FATURAS]
 
             fatura = faturas_collection.find_one({"_id": fatura_obj_id})
             if not fatura:
