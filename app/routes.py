@@ -2,11 +2,15 @@ import asyncio
 from datetime import datetime
 from io import BytesIO
 import os
+import re
 
 from bson import ObjectId
 from bson.errors import InvalidId
 from validate_docbr import CPF
 from flask import jsonify, request
+from flask_jwt_extended import jwt_required
+from werkzeug.security import generate_password_hash
+from pymongo import ReturnDocument
 
 from app.controller.utils_formatar_extrato import formatar_extratos
 from _db import get_db , get_db_connection
@@ -26,11 +30,12 @@ def register_routes_user(app):
     
 
     @app.route("/usuarios", methods=["GET"])
+    @jwt_required()
     def list_users():
         """GET /users - Listar todos os usuários"""
         try:
             collection = get_db()
-            users = list(collection.find({}, {"name": 1, "email": 1, "cpf": 1, "phone": 1, "faturas": 1, "password": 1}))
+            users = list(collection.find({}, {"name": 1, "email": 1, "cpf": 1, "phone": 1, "faturas": 1}))
             # Converter ObjectId para string
             for user in users:
                 user["_id"] = str(user["_id"])
@@ -40,31 +45,40 @@ def register_routes_user(app):
 
 
     @app.route("/usuarios", methods=["POST"])
+    @jwt_required()
     def create_user():
         """POST /users - Criar novo usuário"""
         try:
-            data = request.get_json()
-            cpf = data.get("cpf")
-            if not data or not data.get("name") or not data.get("email") or not data.get("phone") or not cpf:
-                return jsonify({"error": "name, email, phone e cpf são obrigatórios"}), 400
-            if cpf and not CPF().validate(cpf):
+            data = request.get_json() or {}
+            required_fields = ["name", "email", "phone", "cpf", "password"]
+            if not all(data.get(field) for field in required_fields):
+                return jsonify({"error": "name, email, phone, cpf e password são obrigatórios"}), 400
+
+            cpf = re.sub(r"\D", "", data["cpf"])
+            if not CPF().validate(cpf):
                 return jsonify({"error": "CPF inválido"}), 400
-            
+
             collection = get_db()
+            if collection.find_one({"email": data["email"]}):
+                return jsonify({"error": "Email já cadastrado"}), 409
+            if collection.find_one({"cpf": cpf}):
+                return jsonify({"error": "CPF já cadastrado"}), 409
+
             result = collection.insert_one({
                 "name": data["name"],
                 "email": data["email"],
-                "cpf": data.get("cpf"),
-                "phone": data.get("phone"),
+                "cpf": cpf,
+                "phone": data["phone"],
+                "password": generate_password_hash(data["password"]),
                 "faturas": []
             })
-            
+
             user = {
                 "_id": str(result.inserted_id),
                 "name": data["name"],
                 "email": data["email"],
-                "cpf": data.get("cpf"),
-                "phone": data.get("phone"),
+                "cpf": cpf,
+                "phone": data["phone"],
                 "faturas": []
             }
             return jsonify(user), 201
@@ -73,6 +87,7 @@ def register_routes_user(app):
 
 
     @app.route("/usuarios/<user_id>", methods=["GET"])
+    @jwt_required()
     def get_user(user_id):
         """GET /users/<id> - Obter usuário por ID"""
         try:
@@ -94,6 +109,7 @@ def register_routes_user(app):
 
 
     @app.route("/usuarios/<user_id>", methods=["PUT"])
+    @jwt_required()
     def update_user(user_id):
         """PUT /users/<id> - Atualizar usuário"""
         try:
@@ -108,10 +124,26 @@ def register_routes_user(app):
                 return jsonify({"error": "Dados são obrigatórios"}), 400
             
             collection = get_db()
+
+            if "cpf" in data:
+                novo_cpf = re.sub(r"\D", "", data["cpf"])
+                if not CPF().validate(novo_cpf):
+                    return jsonify({"error": "CPF inválido"}), 400
+                if collection.find_one({"cpf": novo_cpf, "_id": {"$ne": obj_id}}):
+                    return jsonify({"error": "CPF já cadastrado"}), 409
+                data["cpf"] = novo_cpf
+
+            if "email" in data:
+                if collection.find_one({"email": data["email"], "_id": {"$ne": obj_id}}):
+                    return jsonify({"error": "Email já cadastrado"}), 409
+
+            if "password" in data:
+                data["password"] = generate_password_hash(data["password"])
+
             user = collection.find_one_and_update(
                 {"_id": obj_id},
                 {"$set": data},
-                return_document=True
+                return_document=ReturnDocument.AFTER
             )
             
             if not user:
@@ -124,6 +156,7 @@ def register_routes_user(app):
 
 
     @app.route("/usuarios/<user_id>", methods=["DELETE"])
+    @jwt_required()
     def delete_user(user_id):
         """DELETE /users/<id> - Deletar usuário"""
         try:
@@ -147,6 +180,7 @@ def register_routes_invoices(app):
     """Registra todas as rotas de extratos - Richardson Nível 2"""
     
     @app.route("/faturas/", methods=["GET"])
+    @jwt_required()
     def get_faturas():
         """GET /faturas - Listar todos os extratos"""
         try:
@@ -161,6 +195,7 @@ def register_routes_invoices(app):
 
 
     @app.route("/faturas/usuario/<user_id>", methods=["GET"])
+    @jwt_required()
     def get_user_faturas(user_id):
         """GET /faturas/<user_id> - Listar extratos do usuário"""
         try:
@@ -188,6 +223,7 @@ def register_routes_invoices(app):
 
 
     @app.route("/faturas/usuario/<user_id>", methods=["POST"])
+    @jwt_required()
     def post_extrato(user_id):
         """POST /faturas/<user_id> - Adicionar extrato à faturaExtrato"""
         try:
@@ -221,33 +257,24 @@ def register_routes_invoices(app):
 
             fatura = faturas_collection.find_one({"user_id": str(user_id), "mes_ano": mes_ano})
             if not fatura:
-                try:
-                    # Criar nova faturaExtrato
-                    fatura_data = {
-                        "user_id": str(user_id),
-                        "mes_ano": mes_ano,
-                        "extratos": []
-                    }
-                    
-                    result = faturas_collection.insert_one(fatura_data)
-                    fatura_id = str(result.inserted_id)
-                    
-                    # Adicionar faturaExtrato à lista do usuário
-                    users_collection.update_one(
-                        {"_id": user_id},
-                        {"$push": {"faturas": fatura_id}}
-                    )                
+                fatura_data = {
+                    "user_id": str(user_id),
+                    "mes_ano": mes_ano,
+                    "extratos": []
+                }
+                result = faturas_collection.insert_one(fatura_data)
+                fatura_id = result.inserted_id
+                users_collection.update_one(
+                    {"_id": user_id},
+                    {"$push": {"faturas": str(fatura_id)}}
+                )
+            else:
+                fatura_id = fatura["_id"]
 
-                except Exception as e:
-                    print(f"Erro no POST: {str(e)}")
-                    return jsonify({"error": str(e)}), 500
-            
-            fatura = faturas_collection.find_one({"user_id": str(user_id), "mes_ano": mes_ano})
-            
             # Adicionar extrato à lista de extratos da faturaExtrato
             faturas_collection.update_one(
                 {"_id": fatura_id},
-                {"$push": {"extratos": extratos}}
+                {"$push": {"extratos": {"$each": extratos}}}
             )
             
             return jsonify({"extrato": extratos}), 201
@@ -268,6 +295,7 @@ def register_routes_invoices(app):
         return obj
 
     @app.route("/faturas/<fatura_id>", methods=["GET"])
+    @jwt_required()
     def get_fatura(fatura_id):
         """
         GET /faturas/<fatura_id> - Retorna a fatura completa com o _id especificado.
@@ -295,5 +323,4 @@ def register_routes_invoices(app):
         except Exception as e:
             app.logger.exception("Erro ao buscar fatura")
             return jsonify({"error": "Erro interno ao buscar fatura", "details": str(e)}), 500
-        
-    
+
