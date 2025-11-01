@@ -233,3 +233,10 @@ def register_routes_auth(app):
                 "valid": False,
                 "message": "Token inválido ou expirado"
             }), 401
+
+def get_current_user_id():
+    """Helper para obter o ID do usuário autenticado"""
+    try:
+        return get_jwt_identity()
+    except:
+        return None
