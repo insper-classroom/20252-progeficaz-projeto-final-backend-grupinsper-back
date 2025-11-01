@@ -20,16 +20,39 @@ def normalize_cpf(cpf):
     """Remove pontuação do CPF deixando apenas números"""
     return re.sub(r'\D', '', cpf)
 
+def format_user(user):
+    """Formata dados do usuário para resposta padronizada"""
+    return {
+        "_id": str(user["_id"]),
+        "name": user["name"],
+        "email": user["email"],
+        "phone": user["phone"],
+        "cpf": user["cpf"]
+    }
+
+def create_response(data, status_code=200):
+    """Cria resposta padronizada com tratamento de tokens"""
+    response_data = data.copy()
+    access_token = data.pop("access_token", None)
+    refresh_token = data.pop("refresh_token", None)
+    
+    response = make_response(jsonify(response_data), status_code)
+    
+    if access_token:
+        set_access_cookies(response, access_token)
+    if refresh_token:
+        set_refresh_cookies(response, refresh_token)
+    
+    return response
+
 def register_routes_auth(app):
     """Registra todas as rotas de autenticação - Richardson Nível 2"""
-    # Configurar JWT para aceitar tokens em HEADERS e COOKIES
-    # Isso permite: navegadores (cookies), mobile (headers), testes (headers)
     app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
     app.config["JWT_HEADER_NAME"] = "Authorization"
     app.config["JWT_HEADER_TYPE"] = "Bearer"
-    app.config["JWT_COOKIE_SECURE"] = False          # True em produção (HTTPS)
+    app.config["JWT_COOKIE_SECURE"] = False
     app.config["JWT_COOKIE_SAMESITE"] = "Lax"
-    app.config["JWT_COOKIE_CSRF_PROTECT"] = False    # True se adicionar CSRF
+    app.config["JWT_COOKIE_CSRF_PROTECT"] = False
     app.config["JWT_ACCESS_COOKIE_PATH"] = "/"
     app.config["JWT_REFRESH_COOKIE_PATH"] = "/auth/refresh"
     
@@ -40,41 +63,38 @@ def register_routes_auth(app):
             data = request.get_json() or {}
 
             if not data.get("email") or not data.get("password"):
-                return jsonify({"error": "email e password são obrigatórios"}), 400
+                return jsonify({
+                    "success": False,
+                    "message": "email e password são obrigatórios"
+                }), 400
 
             collection = get_db()
             user = collection.find_one({"email": data["email"]})
 
             if not user or not check_password_hash(user["password"], data["password"]):
-                return jsonify({"error": "Credenciais inválidas"}), 401
+                return jsonify({
+                    "success": False,
+                    "message": "Credenciais inválidas"
+                }), 401
 
             user_id = str(user["_id"])
             access_token = create_access_token(identity=user_id)
             refresh_token = create_refresh_token(identity=user_id)
 
-            # Response com tokens no JSON (para frontend/mobile)
-            response = make_response(jsonify({
+            return create_response({
                 "success": True,
+                "message": "Login realizado com sucesso",
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "Bearer",
-                "expires_in": 3600,  # segundos
-                "user": {
-                    "_id": user_id,
-                    "name": user["name"],
-                    "email": user["email"],
-                    "phone": user["phone"],
-                    "cpf": user["cpf"]
-                }
-            }), 200)
-            
-            # Tokens também em cookies (para navegadores)
-            set_access_cookies(response, access_token)
-            set_refresh_cookies(response, refresh_token)
-            
-            return response
+                "expires_in": 3600,
+                "user": format_user(user)
+            }, 200)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({
+                "success": False,
+                "message": f"Erro interno: {str(e)}"
+            }), 500
 
     @app.route("/auth/register", methods=["POST"])
     def register():
@@ -85,18 +105,28 @@ def register_routes_auth(app):
             required_fields = ["name", "email", "password", "phone", "cpf"]
             if not all(data.get(field) for field in required_fields):
                 return jsonify({
-                    "error": "Campos obrigatórios: name, email, password, phone, cpf"
+                    "success": False,
+                    "message": "Campos obrigatórios: name, email, password, phone, cpf"
                 }), 400
 
             cpf = normalize_cpf(data["cpf"])
             if not CPF().validate(cpf):
-                return jsonify({"error": "CPF inválido"}), 400
+                return jsonify({
+                    "success": False,
+                    "message": "CPF inválido"
+                }), 400
 
             collection = get_db()
             if collection.find_one({"email": data["email"]}):
-                return jsonify({"error": "Email já cadastrado"}), 409
+                return jsonify({
+                    "success": False,
+                    "message": "Email já cadastrado"
+                }), 409
             if collection.find_one({"cpf": cpf}):
-                return jsonify({"error": "CPF já cadastrado"}), 409
+                return jsonify({
+                    "success": False,
+                    "message": "CPF já cadastrado"
+                }), 409
 
             user_data = {
                 "name": data["name"],
@@ -109,32 +139,25 @@ def register_routes_auth(app):
             }
 
             result = collection.insert_one(user_data)
-            user_id = str(result.inserted_id)
+            user_data["_id"] = result.inserted_id
 
-            access_token = create_access_token(identity=user_id)
-            refresh_token = create_refresh_token(identity=user_id)
+            access_token = create_access_token(identity=str(result.inserted_id))
+            refresh_token = create_refresh_token(identity=str(result.inserted_id))
 
-            response = make_response(jsonify({
+            return create_response({
                 "success": True,
+                "message": "Usuário registrado com sucesso",
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "Bearer",
                 "expires_in": 3600,
-                "user": {
-                    "_id": user_id,
-                    "name": user_data["name"],
-                    "email": user_data["email"],
-                    "phone": user_data["phone"],
-                    "cpf": user_data["cpf"]
-                }
-            }), 201)
-            
-            set_access_cookies(response, access_token)
-            set_refresh_cookies(response, refresh_token)
-            
-            return response
+                "user": format_user(user_data)
+            }, 201)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({
+                "success": False,
+                "message": f"Erro interno: {str(e)}"
+            }), 500
 
     @app.route("/auth/refresh", methods=["POST"])
     @jwt_required(refresh=True)
@@ -144,17 +167,18 @@ def register_routes_auth(app):
             identity = get_jwt_identity()
             access_token = create_access_token(identity=identity)
 
-            response = make_response(jsonify({
+            return create_response({
                 "success": True,
+                "message": "Token renovado com sucesso",
                 "access_token": access_token,
                 "token_type": "Bearer",
                 "expires_in": 3600
-            }), 200)
-            
-            set_access_cookies(response, access_token)
-            return response
+            }, 200)
         except Exception as e:
-            return jsonify({"error": str(e)}), 401
+            return jsonify({
+                "success": False,
+                "message": "Token inválido ou expirado"
+            }), 401
 
     @app.route("/auth/me", methods=["GET"])
     @jwt_required()
@@ -166,15 +190,20 @@ def register_routes_auth(app):
             user = collection.find_one({"_id": ObjectId(identity)}, {"password": 0})
 
             if not user:
-                return jsonify({"error": "Usuário não encontrado"}), 404
+                return jsonify({
+                    "success": False,
+                    "message": "Usuário não encontrado"
+                }), 404
 
-            user["_id"] = str(user["_id"])
             return jsonify({
                 "success": True,
-                "user": user
+                "user": format_user(user)
             }), 200
         except Exception as e:
-            return jsonify({"error": str(e)}), 401
+            return jsonify({
+                "success": False,
+                "message": "Erro ao obter dados do usuário"
+            }), 401
 
     @app.route("/auth/logout", methods=["POST"])
     @jwt_required()
@@ -202,5 +231,5 @@ def register_routes_auth(app):
             return jsonify({
                 "success": False,
                 "valid": False,
-                "error": "Token inválido ou expirado"
+                "message": "Token inválido ou expirado"
             }), 401
