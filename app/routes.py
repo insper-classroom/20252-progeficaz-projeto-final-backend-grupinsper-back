@@ -62,7 +62,6 @@ def register_routes_user(app):
 
 
     @app.route("/usuarios", methods=["POST"])
-    @jwt_required()
     def create_user():
         """POST /users - Criar novo usuário"""
         try:
