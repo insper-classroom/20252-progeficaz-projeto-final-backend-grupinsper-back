@@ -55,6 +55,8 @@ def register_routes_auth(app):
     app.config["JWT_COOKIE_CSRF_PROTECT"] = False
     app.config["JWT_ACCESS_COOKIE_PATH"] = "/"
     app.config["JWT_REFRESH_COOKIE_PATH"] = "/auth/refresh"
+    app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token"
+    app.config["JWT_REFRESH_COOKIE_NAME"] = "refresh_token"
     
     @app.route("/auth/login", methods=["POST"])
     def login():
@@ -206,14 +208,34 @@ def register_routes_auth(app):
             }), 401
 
     @app.route("/auth/logout", methods=["POST"])
-    @jwt_required()
     def logout():
-        """POST /auth/logout - Fazer logout e remover tokens"""
+        """POST /auth/logout - Fazer logout e remover tokens.
+        Não exige autenticação: sempre retorna 200 e expira os cookies de auth.
+        """
         response = make_response(jsonify({
-            "success": True,
-            "message": "Logout realizado com sucesso"
+            "success": True
         }), 200)
+        # Expira cookies configurados do JWT (access e refresh)
         unset_jwt_cookies(response)
+        # Garantia extra: limpa possíveis nomes esperados pelo frontend
+        response.set_cookie(
+            key=app.config.get("JWT_ACCESS_COOKIE_NAME", "access_token"),
+            value="",
+            expires=0,
+            path="/",
+            httponly=True,
+            secure=bool(app.config.get("JWT_COOKIE_SECURE", False)),
+            samesite=app.config.get("JWT_COOKIE_SAMESITE", "Lax")
+        )
+        response.set_cookie(
+            key=app.config.get("JWT_REFRESH_COOKIE_NAME", "refresh_token"),
+            value="",
+            expires=0,
+            path="/",
+            httponly=True,
+            secure=bool(app.config.get("JWT_COOKIE_SECURE", False)),
+            samesite=app.config.get("JWT_COOKIE_SAMESITE", "Lax")
+        )
         return response
 
     @app.route("/auth/validate-token", methods=["POST"])

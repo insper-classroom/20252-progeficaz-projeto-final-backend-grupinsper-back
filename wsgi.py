@@ -12,7 +12,8 @@ from _db import get_db
 
 app = Flask(__name__)
 
-CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": FRONTEND_ORIGIN}})
 
 # CONFIGURAÇÃO DO JWT
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "seu-segredo-de-teste") 
@@ -24,6 +25,9 @@ app.config["JWT_COOKIE_SAMESITE"] = "Lax"
 app.config["JWT_COOKIE_CSRF_PROTECT"] = False 
 app.config["JWT_ACCESS_COOKIE_PATH"] = "/"
 app.config["JWT_REFRESH_COOKIE_PATH"] = "/auth/refresh"
+# Nomes explícitos dos cookies, para compatibilidade com o frontend
+app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token"
+app.config["JWT_REFRESH_COOKIE_NAME"] = "refresh_token"
 jwt = JWTManager(app)
 
 # REGISTRO DAS ROTAS
