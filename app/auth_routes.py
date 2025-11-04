@@ -13,6 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from bson import ObjectId
 from _db import get_db
 from validate_docbr import CPF
+from datetime import timedelta
 
 COLLECTION_USERS = "usuarios_collection"
 
@@ -59,6 +60,8 @@ def register_routes_auth(app):
     app.config["JWT_REFRESH_COOKIE_PATH"] = "/auth/refresh"
     app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token"
     app.config["JWT_REFRESH_COOKIE_NAME"] = "refresh_token"
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=4)
+    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=7)
     
     @app.route("/auth/login", methods=["POST"])
     def login():
