@@ -113,7 +113,7 @@ def get_extrato_estruturado(extrato_string: str) -> Extrato:
     - Cada transação pode ter mais de uma linha correspondente.
 
     2. **Manter o sinal correto**  
-    - Se o valor vier com “-”, use valor negativo; caso contrário, positivo.  
+    - Se o valor vier com “-”, use valor negativo; caso contrário, positivo. ** Tome muito cuidado! Gastos devem ser negativos **.
 
     3. **Mapear `origem: OrigemTransacao`** (busca case-insensitive na descrição). Exemplos:
     - Contém “pix” → `PIX`  
