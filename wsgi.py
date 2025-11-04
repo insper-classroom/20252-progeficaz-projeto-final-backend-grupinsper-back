@@ -20,8 +20,9 @@ app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "seu-segredo-de-teste
 app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
 app.config["JWT_HEADER_NAME"] = "Authorization"
 app.config["JWT_HEADER_TYPE"] = "Bearer"
-app.config["JWT_COOKIE_SECURE"] = False # False para localhost
-app.config["JWT_COOKIE_SAMESITE"] = "Lax"
+# Em produção, JWT_COOKIE_SECURE deve ser True para HTTPS
+app.config["JWT_COOKIE_SECURE"] = os.getenv("JWT_COOKIE_SECURE", "False").lower() == "true"
+app.config["JWT_COOKIE_SAMESITE"] = os.getenv("JWT_COOKIE_SAMESITE", "Lax")
 app.config["JWT_COOKIE_CSRF_PROTECT"] = False 
 app.config["JWT_ACCESS_COOKIE_PATH"] = "/"
 app.config["JWT_REFRESH_COOKIE_PATH"] = "/auth/refresh"
@@ -43,4 +44,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"ERRO AO CONECTAR COM O BANCO: {e}")
 
-    app.run(debug=True, port=5000)
+    # Em produção, use um servidor WSGI como Gunicorn
+    debug_mode = os.getenv("FLASK_DEBUG", "False").lower() == "true"
+    port = int(os.getenv("PORT", 5000))
+    app.run(debug=debug_mode, host="0.0.0.0", port=port)
