@@ -554,7 +554,8 @@ curl http://localhost:5000/faturas/671ba20104d5b8aa3c0b5678 \
    - Limpar cookies
    - Redirecionar para login
 ```
-
+## URL / IP do projeto - Backend
+http://18.209.61.5:5000/
 ---
 
 ## Próximos passos sugeridos
